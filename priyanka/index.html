@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Game</title>
+    <style>
+        #loading {
+            display: none;
+            width: 25px;
+            height: 25px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+            margin: auto;
+        }
+
+        .question-number {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #000000;
+            font-weight: bold;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #quizForm {
+            margin-bottom: 20px;
+        }
+
+        #response {
+            white-space: pre-wrap;
+        }
+
+        .question-container {
+            display: none;
+        }
+
+        .question-container.active {
+            display: block;
+        }
+
+        .question {
+            font-weight: bold;
+        }
+
+        .options {
+            list-style: none;
+            padding: 0;
+        }
+
+        .options li {
+            margin: 5px 0;
+            cursor: pointer;
+            padding: 10px;
+            border: 1px solid #3498db;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+
+        .options li.selected {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+
+        .buttons {
+            margin-top: 20px;
+        }
+
+        .button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            color: white;
+            background-color: #3498db;
+            cursor: pointer;
+        }
+
+        .button:disabled {
+            background-color: #ddd;
+            cursor: not-allowed;
+        }
+
+        #percentageContainer {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        #percentageSpinner {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: auto;
+            background: conic-gradient(#3498db var(--percentage, 0%), #f3f3f3 var(--percentage, 0%));
+            position: relative;
+        }
+
+        #percentageText {
+            font-size: 24px;
+            margin-top: 10px;
+        }
+
+        .spinner-progress {
+            border: 10px solid transparent;
+            border-top: 10px solid #3498db;
+            border-radius: 50%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100px;
+            height: 100px;
+            transform: rotate(0deg);
+            animation: spin 1.5s linear forwards;
+        }
+    </style>
+</head>
+
+<body>
+    <p>QUIZZ</p>
+    <form id="quizForm" enctype="multipart/form-data">
+        <label for="pdf">Upload PDF (PDF only):</label>
+        <input type="file" id="pdf" name="pdf" accept="application/pdf"><br><br>
+        
+        <label for="numQuestions">Number of Questions:</label>
+        <input type="number" id="numQuestions" name="numQuestions" min="1" required><br><br>
+        
+        <button type="submit">Submit</button>
+    </form>
+    <div id="loading"></div>
+
+    <div id="questionNumber" class="question-number"></div>
+    
+    <div id="questionsContainer">
+        <div class="question-container" id="questionContainer">
+            <div class="question"></div>
+            <ul class="options" id="optionsContainer"></ul>
+        </div>
+        <div class="buttons">
+            <button id="prevButton" class="button" disabled>Previous</button>
+            <button id="nextButton" class="button" disabled>Next</button>
+            <button id="finishButton" class="button" style="display:none;">Finish Quiz</button>
+        </div>
+        <div id="percentageContainer">
+            <div id="percentageSpinner"></div>
+            <div id="percentageText">Your score: 0%</div>
+        </div>
+        <div id="stats">
+            <div id="attemptedQuestions">Attempted Questions: 0</div>
+            <div id="correctAnswers">Correct Answers: 0</div>
+            <div id="incorrectAnswers">Incorrect Answers: 0</div>
+        </div>
+    </div>
+
+    <script>
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let selectedAnswers = [];
+
+        document.getElementById('quizForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('pdf', document.getElementById('pdf').files[0]);
+            formData.append('numQuestions', document.getElementById('numQuestions').value);
+
+            const loadingElement = document.getElementById('loading');
+            const questionsContainer = document.getElementById('questionsContainer');
+            const percentageContainer = document.getElementById('percentageContainer');
+            const statsContainer = document.getElementById('stats');
+
+            loadingElement.style.display = 'block';
+            questionsContainer.style.display = 'none';
+            percentageContainer.style.display = 'none';
+            statsContainer.style.display = 'none';
+
+            try {
+                const response = await fetch('http://localhost:3001/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                loadingElement.style.display = 'none';
+
+                if (response.ok) {
+                    questions = result.questions || [];
+                    currentQuestionIndex = 0;
+                    selectedAnswers = new Array(questions.length).fill(null);
+                    displayQuestion();
+                } else {
+                    alert(`Error: ${result.error}`);
+                }
+            } catch (error) {
+                loadingElement.style.display = 'none';
+                alert(`Error: ${error.message}`);
+            }
+        });
+
+        document.getElementById('nextButton').addEventListener('click', () => {
+            if (currentQuestionIndex < questions.length - 1) {
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+        });
+
+        document.getElementById('prevButton').addEventListener('click', () => {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                displayQuestion();
+            }
+        });
+
+        document.getElementById('finishButton').addEventListener('click', () => {
+            const score = calculateScore();
+            const totalQuestions = questions.length;
+            const attempted = selectedAnswers.filter(answer => answer !== null).length;
+            const correct = selectedAnswers.filter((answer, index) => answer === questions[index].correct).length;
+            const incorrect = attempted - correct;
+            const percentage = Math.round((score / totalQuestions) * 100);
+
+            animateSpinner(percentage);
+            displayStats(attempted, correct, incorrect);
+        });
+
+        function displayQuestion() {
+    const questionContainer = document.getElementById('questionContainer');
+    const questionElement = document.querySelector('.question');
+    const optionsContainer = document.getElementById('optionsContainer');
+    const prevButton = document.getElementById('prevButton');
+    const nextButton = document.getElementById('nextButton');
+    const finishButton = document.getElementById('finishButton');
+    const questionNumber = document.getElementById('questionNumber');
+
+    if (questions.length > 0) {
+        const question = questions[currentQuestionIndex];
+        console.log('Displaying question:', question); // Log the question object for debugging
+        questionElement.textContent = question.ques;
+        
+        questionNumber.textContent = `Question ${currentQuestionIndex + 1} out of ${questions.length}`;
+
+        optionsContainer.innerHTML = '';
+        ['o1', 'o2', 'o3', 'o4'].forEach(optionKey => {
+            const option = question[optionKey];
+            if (option) {
+                const li = document.createElement('li');
+                li.textContent = option;
+                li.addEventListener('click', () => handleOptionClick(optionKey));
+                optionsContainer.appendChild(li);
+            }
+        });
+
+        prevButton.disabled = currentQuestionIndex === 0;
+        nextButton.disabled = currentQuestionIndex === questions.length - 1;
+        finishButton.style.display = currentQuestionIndex === questions.length - 1 ? 'block' : 'none';
+        
+        questionContainer.classList.add('active');
+        questionsContainer.style.display = 'block';
+    } else {
+        questionContainer.innerHTML = 'No questions available.';
+    }
+}
+
+
+        function handleOptionClick(optionKey) {
+            selectedAnswers[currentQuestionIndex] = optionKey;
+            document.querySelectorAll('#optionsContainer li').forEach((li, index) => {
+                li.style.backgroundColor = index === optionKey.replace('o', '') - 1 ? 'lightblue' : '';
+            });
+        }
+
+        function calculateScore() {
+            return selectedAnswers.reduce((score, answer, index) => {
+                return answer === questions[index].correct ? score + 1 : score;
+            }, 0);
+        }
+
+        function animateSpinner(percentage) {
+            const spinner = document.getElementById('percentageSpinner');
+            spinner.style.width = '0%';
+            spinner.style.transition = 'width 1s';
+            setTimeout(() => {
+                spinner.style.width = `${percentage}%`;
+            }, 100);
+            
+            document.getElementById('percentageText').textContent = `Your score: ${percentage}%`;
+            document.getElementById('percentageContainer').style.display = 'block';
+        }
+
+        function displayStats(attempted, correct, incorrect) {
+            document.getElementById('attemptedQuestions').textContent = `Attempted Questions: ${attempted}`;
+            document.getElementById('correctAnswers').textContent = `Correct Answers: ${correct}`;
+            document.getElementById('incorrectAnswers').textContent = `Incorrect Answers: ${incorrect}`;
+            document.getElementById('stats').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
