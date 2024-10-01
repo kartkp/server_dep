@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Special Child</title>
+    <style>
+      body {
+          font-family: Arial, sans-serif;
+          margin: 20px;
+          padding: 0;
+          background-color: #f9f9f9;
+      }
+
+      h1 {
+          color: #333;
+      }
+
+      form {
+          background: #fff;
+          padding: 10px;
+          border-radius: 8px;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+          max-width: 380px;
+          margin: auto;
+      }
+
+      label {
+          display: block;
+          margin: 10px 0 5px;
+          font-weight: bold;
+      }
+
+      input[type="file"],
+      input[type="text"] {
+          width: 95%;
+          padding: 8px;
+          margin-bottom: 15px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+      }
+
+      button[type="submit"] {
+          background-color: #3498db;
+          color: #fff;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+      }
+
+      button[type="submit"]:hover {
+          background-color: #2980b9;
+      }
+
+      #loading {
+          display: none;
+          width: 25px;
+          height: 25px;
+          border: 5px solid #f3f3f3;
+          border-top: 5px solid #3498db;
+          border-radius: 50%;
+          animation: spin 2s linear infinite;
+          margin: 20px auto;
+      }
+
+      @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+      }
+
+      #pdfPreview {
+          display: none;
+          width: 100%;
+          height: 500px;
+          border: 1px solid #ddd;
+          margin-top: 20px;
+      }
+
+      #buttons {
+          display: none;
+          margin-top: 10px;
+      }
+
+      #buttons a,
+      #buttons button {
+          margin-right: 10px;
+          text-decoration: none;
+          color: #3498db;
+          border: 1px solid #3498db;
+          padding: 5px 10px;
+          border-radius: 3px;
+          background-color: white;
+          cursor: pointer;
+          transition: background-color 0.3s, color 0.3s;
+      }
+
+      #buttons a:hover,
+      #buttons button:hover {
+          background-color: #3498db;
+          color: white;
+      }
+    </style>
+</head>
+<body>
+    <h1>Special Child</h1>
+    <p>For The Child With Special Needs</p>
+    <form id="notesForm" enctype="multipart/form-data">
+        <label for="notes">Upload Your Notes (PDF only):</label>
+        <input type="file" id="notes" name="notes" accept="application/pdf"><br>
+        
+        <label for="image">Upload an Image (optional):</label>
+        <input type="file" id="image" name="image" accept="image/*"><br>
+        
+        <label for="prompt">Enter your prompt (optional, default is English):</label>
+        <input type="text" id="prompt" name="prompt" placeholder="Enter your prompt here"><br>
+        
+        <button type="submit">Submit</button>
+    </form>
+    
+    <div id="loading"></div>
+    <iframe id="pdfPreview" frameborder="0"></iframe>
+    <div id="buttons">
+        <button id="fullscreen">View Fullscreen</button>
+        <a id="download" href="#" download="response.pdf">Download PDF</a>
+    </div>
+
+    <script>
+      document.getElementById('notesForm').addEventListener('submit', async (event) => {
+          event.preventDefault();
+
+          const formData = new FormData();
+          formData.append('notes', document.getElementById('notes').files[0]);
+          formData.append('image', document.getElementById('image').files[0]);
+          const prompt = document.getElementById('prompt').value || 'English';
+          formData.append('prompt', prompt);
+
+          const loadingElement = document.getElementById('loading');
+          const pdfPreview = document.getElementById('pdfPreview');
+          const buttons = document.getElementById('buttons');
+          const downloadButton = document.getElementById('download');
+
+          loadingElement.style.display = 'block';
+          pdfPreview.style.display = 'none';
+          buttons.style.display = 'none';
+
+          try {
+              const response = await fetch('/upload', {
+                  method: 'POST',
+                  body: formData
+              });
+
+              if (response.ok) {
+                  const blob = await response.blob();
+                  const url = URL.createObjectURL(blob);
+                  pdfPreview.src = url;
+                  pdfPreview.style.display = 'block';
+                  buttons.style.display = 'block';
+                  downloadButton.href = url;
+              } else {
+                  alert('Error generating PDF.');
+              }
+          } catch (error) {
+              alert('An error occurred while generating the PDF.');
+          } finally {
+              loadingElement.style.display = 'none';
+          }
+      });
+
+      document.getElementById('fullscreen').addEventListener('click', () => {
+          const pdfPreview = document.getElementById('pdfPreview');
+          if (pdfPreview.requestFullscreen) {
+              pdfPreview.requestFullscreen();
+          } else if (pdfPreview.msRequestFullscreen) {
+              pdfPreview.msRequestFullscreen();
+          } else if (pdfPreview.mozRequestFullScreen) {
+              pdfPreview.mozRequestFullScreen();
+          } else if (pdfPreview.webkitRequestFullscreen) {
+              pdfPreview.webkitRequestFullscreen();
+          }
+      });
+    </script>
+</body>
+</html>
