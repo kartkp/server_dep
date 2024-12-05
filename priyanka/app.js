@@ -72,7 +72,7 @@ async function extractTextFromImage(imageBuffer) {
 }
 
 async function questionGenerator(text, numQuestions, language) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.0-pro-latest' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const finalPrompt = `I will give you some text on a topic
 
@@ -98,8 +98,6 @@ async function questionGenerator(text, numQuestions, language) {
     const result = await model.generateContent(finalPrompt);
     const responseText = result.response.text();
 
-    // Log the raw response text for debugging
-    // console.log('Raw API Response:', responseText);
 
     const jsonMatch = responseText.match(/\[.*?\]/s);
     if (!jsonMatch) {
